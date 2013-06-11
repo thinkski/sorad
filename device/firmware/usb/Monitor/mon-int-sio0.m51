@@ -1,0 +1,42 @@
+BL51 BANKED LINKER/LOCATER V4.03                                                        07/12/2001  10:54:17  PAGE 1
+
+
+BL51 BANKED LINKER/LOCATER V4.03, INVOKED BY:
+BL51 INSTALL.OBJ, MON51DP2.LIB TO MON51 XDATA (XDATA_AREA (01100H)) CODE (INITSEG (0000H), INSTALLCODE, STOPSEG, CODE_AR
+>> EA, GOCODE_AREA) PRECEDE (STACK (08))
+
+
+INPUT MODULES INCLUDED:
+  INSTALL.OBJ (CONFIG)
+  MON51DP2.LIB (MON51)
+  MON51DP2.LIB (SERINT)
+  MON51DP2.LIB (MEM)
+  MON51DP2.LIB (GO)
+
+
+LINK MAP OF MODULE:  MON51 (CONFIG)
+
+
+            TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+            -----------------------------------------------------
+
+            * * * * * * *   D A T A   M E M O R Y   * * * * * * *
+            REG     0000H     0008H     ABSOLUTE     "REG BANK 0"
+            IDATA   0008H     001AH     UNIT         STACK
+            BIT     0022H.0   0000H.3   UNIT         BIT_AREA
+                    0022H.3   0000H.5                *** GAP ***
+            DATA    0023H     0019H     UNIT         DATA_AREA
+
+            * * * * * * *  X D A T A   M E M O R Y  * * * * * * *
+                    0000H     1100H                  *** GAP ***
+            XDATA   1100H     00CEH     PAGE         XDATA_AREA
+
+            * * * * * * *   C O D E   M E M O R Y   * * * * * * *
+            CODE    0000H     0121H     UNIT         INITSEG
+            CODE    0121H     0073H     UNIT         INSTALLCODE
+                    0194H     006CH                  *** GAP ***
+            CODE    0200H     0351H     PAGE         STOPSEG
+            CODE    0551H     05B4H     UNIT         CODE_AREA
+            CODE    0B05H     0571H     UNIT         GOCODE_AREA
+
+LINK/LOCATE RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,9 @@
+"FW.obj",
+"PERIPH.obj",
+"DSCR.obj",
+"..\..\Lib\LP\EZUSB.LIB",
+"..\..\Lib\LP\USBJmpTb.OBJ" 
+TO "fw" 
+RAMSIZE(256) 
+CODE( 0x80-0x0FFF )
+XDATA( 0x1000 )

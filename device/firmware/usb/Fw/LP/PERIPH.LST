@@ -1,0 +1,713 @@
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 1   
+
+
+C51 COMPILER V7.07, COMPILATION OF MODULE PERIPH
+OBJECT MODULE PLACED IN PERIPH.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE PERIPH.C OPTIMIZE(6,SPEED) DEBUG OBJECTEXTEND TABS(8)
+
+stmt level    source
+
+   1          /*------------------------------ PROPRIETARY -------------------------------*/
+   2          
+   3          /* NAME
+   4           *      periph.c
+   5           *
+   6           * DESCRIPTION
+   7           *      This file contains hooks required to implement USB peripheral
+   8           *      functions.
+   9           *
+  10           *      This file is a derivative work of periph.c distributed by Cypess
+  11           *      Semiconductor Corporation in the FX2LP Development Kit FrameWorks
+  12           *      software.
+  13           *
+  14           * AUTHORS
+  15           *      Cypress Semiconductor Corporation and
+  16           *      Chris Hiszpanski <chiszp@alumni.caltech.edu>
+  17           *
+  18           * Mar 23 2005  Last noted modification by Cypress Semiconductor Corporation.
+  19           * May 27 2008  Implemented FPGA configuration code. Not tested. (cphiszp)
+  20           * Nov 14 2008  Changed device name from 'Bootloader' to 'SoRAD' in dscr.a51.
+  21           *              Changes from May 27 2007 also work. (cphiszp)
+  22           * Nov 15 2008  Added EP2CFG and EP2ISOINPKTS register initialization.
+  23           *              (cphiszp)
+  24           */
+  25          
+  26          /* Do not generate interrupt vectors */
+  27          #pragma NOIV
+  28          
+  29          
+  30          /*-------------------------------- Includes --------------------------------*/
+  31          
+  32          #include "fx2.h"
+  33          #include "fx2regs.h"
+  34          #include "syncdly.h"                    /* Synchronization delay macro      */
+  35          
+  36          
+  37          /*---------------------------- Shared Variables ----------------------------*/
+  38          
+  39          extern  BOOL    GotSUD;                 /* Received setup data flag         */
+  40          extern  BOOL    Sleep;
+  41          extern  BOOL    Rwuen;
+  42          extern  BOOL    Selfpwr;
+  43          
+  44          typedef enum {                          /* State type definition            */
+  45                          PROG_LOW,
+  46                          PROG_HIGH,
+  47                          WAIT_FOR_INIT,
+  48                          WAIT_FOR_DONE
+  49          } STATE_T;
+  50          
+  51          STATE_T State;                          /* Finite state machine state       */
+  52          BYTE    Count;                          /* Delay counter                    */
+  53          
+  54          BYTE    Configuration;                  /* Current configuration            */
+  55          BYTE    AlternateSetting;               /* Alternate settings               */
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 2   
+
+  56          
+  57          
+  58          /*------------------------- Task Dispatcher Hooks --------------------------*/
+  59          
+  60          /* NAME
+  61           *      TD_Init
+  62           *      
+  63           * DESCRIPTION
+  64           *      Called once at start-up.
+  65           *
+  66           *      Configures select PORT A pins as input/output, later used to
+  67           *      configure the FPGA.
+  68           *
+  69           * ARGUMENTS
+  70           *      None.
+  71           *
+  72           *  RETURN
+  73           *      None.
+  74           *
+  75           * May 16 2008  Imported and modified FrameWorks code.
+  76           * May 27 2008  Implemented initialization code for FPGA configuration.
+  77           * Nov 15 2008  Added isochronous endpoint 2 initialization.
+  78           */
+  79          
+  80          void TD_Init (void)
+  81          {
+  82   1      //      int     i,j;
+  83   1      
+  84   1              /* CPU Control and Status:              48 MHz */
+  85   1              CPUCS = ((CPUCS & ~bmCLKSPD) | bmCLKSPD1);
+  86   1      
+  87   1              /* Initialize variables */
+  88   1              AlternateSetting = 0;
+  89   1      
+  90   1              REVCTL = 0x3;
+  91   1              SYNCDELAY;
+  92   1      
+  93   1              /* Disable all endpoints */
+  94   1              EP1OUTCFG = EP1INCFG = EP2CFG = EP4CFG = EP6CFG = EP8CFG = 0;
+  95   1              SYNCDELAY;
+  96   1      
+  97   1              /* Interface Configuration:
+  98   1               * 1------- clock:                      internal
+  99   1               * -1------ clock frequency:            48 MHz
+ 100   1               * --0----- clock output enable:        disable
+ 101   1               * ---0---- clock polarity:             not applicable
+ 102   1               * ----1--- fifo mode:                  asynchronous
+ 103   1               * -----0-- drive gstate on port e:     disable
+ 104   1               * ------00 mode:                       ports
+ 105   1               */
+ 106   1              IFCONFIG     = 0xC8;
+ 107   1              SYNCDELAY;
+ 108   1      
+ 109   1              USBIE |= bmSOF;
+ 110   1      
+ 111   1              /* Enable remote-wakeup */
+ 112   1              Rwuen = TRUE;
+ 113   1      }
+ 114          
+ 115          /* NAME
+ 116           *      TD_Poll
+ 117           *
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 3   
+
+ 118           * DESCRIPTION
+ 119           *      Called repeatedly while the device is idle.
+ 120           *
+ 121           * ARGUMENTS
+ 122           *      None.
+ 123           *
+ 124           * RETURN
+ 125           *      None.
+ 126           *
+ 127           * May 16 2008  Imported and modified FrameWorks code.
+ 128           * May 27 2008  Implemented FPGA configuration finite state machine.
+ 129           * Nov 17 2008  Added condition to check for alt. interface 1
+ 130           */
+ 131          
+ 132          void TD_Poll (void)
+ 133          {
+ 134   1              /* verify that using fpga configuration interface */
+ 135   1              if (AlternateSetting == 1) {
+ 136   2      
+ 137   2                      switch (State)
+ 138   2                      {
+ 139   3                              /* Assert PROG_B pin on FPGA for >= 500ns */
+ 140   3                              case PROG_LOW:
+ 141   3                                      /* Note the inverter between uC and PROG_B */
+ 142   3                                      IOA |= bmBIT3;
+ 143   3                                      Count++;
+ 144   3                                      if (Count > 25)
+ 145   3                                      {
+ 146   4                                              Count = 0;
+ 147   4                                              State = PROG_HIGH;
+ 148   4                                      }
+ 149   3                                      break;
+ 150   3              
+ 151   3                              /* De-assert PROG_B pin on FPGA */
+ 152   3                              case PROG_HIGH:
+ 153   3                                      IOA &= ~(bmBIT3);
+ 154   3                                      State = WAIT_FOR_INIT;
+ 155   3                                      break;
+ 156   3              
+ 157   3                              /* Clock FPGA until its INIT_B pin is de-asserted */
+ 158   3                              case WAIT_FOR_INIT:
+ 159   3                                      /* Toggle configuration clock */
+ 160   3                                      if (IOA & bmBIT0) {
+ 161   4                                              IOA = (IOA & bmBIT6) ? IOA & ~bmBIT6 : IOA | bmBIT6;
+ 162   4                                      }
+ 163   3              
+ 164   3              
+ 165   3                                      IOA = (IOA & bmBIT0) ? IOA & ~bmBIT0 : IOA | bmBIT0;
+ 166   3              
+ 167   3              
+ 168   3                                      /* Change state when INIT_B goes high */
+ 169   3                                      if (IOA & bmBIT7)
+ 170   3                                      {
+ 171   4                                              State = WAIT_FOR_DONE;
+ 172   4                                      }
+ 173   3                                      break;
+ 174   3              
+ 175   3                              /* Clock in data via interrupt service routine */
+ 176   3                              case WAIT_FOR_DONE:
+ 177   3                                      break;
+ 178   3                      }
+ 179   2              }
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 4   
+
+ 180   1      }
+ 181          
+ 182          
+ 183          /* NAME
+ 184           *      TD_Suspend
+ 185           *
+ 186           * DESCRIPTION
+ 187           *      Called before the device goes into suspend mode.
+ 188           *
+ 189           * ARGUMENTS
+ 190           *      None.
+ 191           *
+ 192           * RETURN
+ 193           *      True.
+ 194           *
+ 195           * May 16 2008  Imported and modified FrameWorks code.
+ 196           */
+ 197          
+ 198          BOOL TD_Suspend (void)
+ 199          {
+ 200   1              return(TRUE);
+ 201   1      }
+ 202          
+ 203          
+ 204          /* NAME
+ 205           *      TD_Resume
+ 206           *
+ 207           * DESCRIPTION
+ 208           *      Called after the device resumes.
+ 209           *
+ 210           * ARGUMENTS
+ 211           *      None.
+ 212           *
+ 213           * RETURN
+ 214           *      True.
+ 215           *
+ 216           * May 16 2008  Imported and modified FrameWorks code.
+ 217           */
+ 218          
+ 219          BOOL TD_Resume (void)
+ 220          {
+ 221   1              return(TRUE);
+ 222   1      }
+ 223          
+ 224          //----------------------------------------------------------------------------
+ 225          // Device Request hooks
+ 226          //   The following hooks are called by the end point 0 device request parser.
+ 227          //----------------------------------------------------------------------------
+ 228          
+ 229          BOOL DR_GetDescriptor(void)
+ 230          {
+ 231   1         return(TRUE);
+ 232   1      }
+ 233          
+ 234          // Called when a Set Configuration command is received
+ 235          BOOL DR_SetConfiguration(void)
+ 236          {
+ 237   1         Configuration = SETUPDAT[2];
+ 238   1         return(TRUE);                        // Handled by user code
+ 239   1      }
+ 240          
+ 241          // Called when a Get Configuration command is received
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 5   
+
+ 242          BOOL DR_GetConfiguration(void)
+ 243          {
+ 244   1         EP0BUF[0] = Configuration;
+ 245   1         EP0BCH = 0;
+ 246   1         EP0BCL = 1;
+ 247   1         return(TRUE);                        // Handled by user code
+ 248   1      }
+ 249          
+ 250          // Called when a Set Interface command is received
+ 251          BOOL DR_SetInterface(void)
+ 252          {
+ 253   1              /* store alternate setting for use outside this function */
+ 254   1              AlternateSetting = SETUPDAT[2];
+ 255   1      
+ 256   1              switch (AlternateSetting) {
+ 257   2                      /* alternate interface for fpga configuration */
+ 258   2                      case 1:
+ 259   2                              /* initialize variables */
+ 260   2                              State = PROG_LOW;
+ 261   2                              Count = 0;
+ 262   2      
+ 263   2                              /* Interface Configuration:
+ 264   2                               * ------00 mode:                       ports
+ 265   2                               */
+ 266   2                              IFCONFIG     = (IFCONFIG & 0xFC);
+ 267   2                              SYNCDELAY;
+ 268   2      
+ 269   2                              /* Ensure PORT A is in input/output mode */
+ 270   2                              PORTACFG = 0;
+ 271   2                      
+ 272   2                              /* Set output levels:
+ 273   2                               *      PA0 (CCLK)      low
+ 274   2                               *      PA3 (PROG_B)    high (in-active)
+ 275   2                               *      PA6 (DIN)       low
+ 276   2                               */
+ 277   2                              IOA = bmBIT3;
+ 278   2                      
+ 279   2                              /* Set input/output pin directions:
+ 280   2                               *      PA0 (CCLK)      output
+ 281   2                               *      PA1 (DONE)      input
+ 282   2                               *      PA3 (PROG_B)    output
+ 283   2                               *      PA6 (DIN)       output
+ 284   2                               *      PA7 (INIT_B)    input
+ 285   2                               */
+ 286   2                              OEA = bmBIT6 | bmBIT3 | bmBIT0;
+ 287   2      
+ 288   2      
+ 289   2                              /* Configurure endpoints */
+ 290   2                              EP1OUTCFG    = 0xA0;    /* single buffered                           */
+ 291   2                              EP1INCFG     = 0xA0;    /* single buffered                           */
+ 292   2      
+ 293   2                              /* Disable other endpoints */
+ 294   2                              EP2CFG       = (EP2CFG & 0x7F);
+ 295   2                              EP4CFG       = (EP4CFG & 0x7F);
+ 296   2                              EP6CFG       = (EP6CFG & 0x7F);
+ 297   2                              EP8CFG       = (EP8CFG & 0x7F);
+ 298   2      
+ 299   2                              /* Output endpoints are not armed by default -- arm EP1OUT */
+ 300   2                              EP1OUTBC = 0x40;
+ 301   2                      
+ 302   2                              /* Enable output endpoint 1 USB interrupts */
+ 303   2                              EPIE |= bmBIT3;
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 6   
+
+ 304   2                              /* Enable input endpoint 1 USB interrupts */
+ 305   2                              EPIE |= bmBIT2;
+ 306   2      
+ 307   2                              break;
+ 308   2      
+ 309   2                      /* alternate interface for isochronous sample transmission */
+ 310   2                      case 2:
+ 311   2                              /* Disable endpoint 1 USB interrupts */
+ 312   2                              EPIE &= ~(bmBIT3 | bmBIT2);
+ 313   2      
+ 314   2                              /* Interface Configuration:
+ 315   2                               * ------11 mode:                       slave fifos
+ 316   2                               */
+ 317   2                              IFCONFIG     = (IFCONFIG & 0xFC) | 0x3;
+ 318   2                              SYNCDELAY;
+ 319   2                      
+ 320   2                              /* Endpoint 2 configuration:
+ 321   2                               * 1------- valid:                      enable
+ 322   2                               * -1------ direction:                  in
+ 323   2                               * --01---- type:                       isochronous
+ 324   2                               * ----1--- size:                       1024 bytes
+ 325   2                               * ------00 buffering:                  quad
+ 326   2                               */
+ 327   2                              EP2CFG       = 0xD8;
+ 328   2                              SYNCDELAY;
+ 329   2      
+ 330   2                              /* Disable other endpoints */
+ 331   2                              EP1INCFG = EP1OUTCFG = EP4CFG = EP6CFG = EP8CFG = 0;
+ 332   2                              SYNCDELAY;
+ 333   2      
+ 334   2                              /* Clear out any committed packets */
+ 335   2                              FIFORESET    = 0x80;    /* nak all transactions     */
+ 336   2                              SYNCDELAY;
+ 337   2                              FIFORESET    = 0x02;    /* reset endpoint 2 fifo    */
+ 338   2                              SYNCDELAY;
+ 339   2                              FIFORESET    = 0x00;    /* restore normal operation */
+ 340   2                              SYNCDELAY;
+ 341   2      
+ 342   2                              /* Endpoint 2 / slave FIFO configuration
+ 343   2                               * -0------ in FULL flag minus 1:       disable
+ 344   2                               * --0----- out EMPTY flag plus 1:      disable
+ 345   2                               * ---0---- auto out:                   disable
+ 346   2                               * ----1--- auto in:                    enable
+ 347   2                               * -----1-- zero length in:             enable
+ 348   2                               * -------1 wordwide:                   enable
+ 349   2                               */
+ 350   2                              EP2FIFOCFG   = 0x0D;
+ 351   2                              SYNCDELAY;
+ 352   2                      
+ 353   2                              /* Endpoint 2 AUTOIN Packet Length H */
+ 354   2                              EP2AUTOINLENH = 0x04;
+ 355   2                              SYNCDELAY;
+ 356   2                      
+ 357   2                              /* Endpoint 2 AUTOIN Packet Length L */
+ 358   2                              EP2AUTOINLENL = 0x00;
+ 359   2                              SYNCDELAY;
+ 360   2      
+ 361   2                              /* Endpoint 2 Isochronous IN Packets
+ 362   2                               * 1------- auto adjust:                enable
+ 363   2                               * ------11 packets per micro-frame:    3
+ 364   2                               */
+ 365   2                              EP2ISOINPKTS = 0x83;
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 7   
+
+ 366   2                              break;
+ 367   2      
+ 368   2                      /* alternate interface for re-numerating EZ-USB firmware */
+ 369   2                      default:
+ 370   2                              /* Disable endpoint 1 USB interrupts */
+ 371   2                              EPIE &= ~(bmBIT3 | bmBIT2);
+ 372   2      
+ 373   2                              /* Disable all endpoints */
+ 374   2                              EP1INCFG      = (EP1INCFG & 0x7F);
+ 375   2                              EP1OUTCFG     = (EP1OUTCFG & 0x7F);
+ 376   2                              EP2CFG        = (EP2CFG & 0x7F);
+ 377   2                              EP4CFG        = (EP4CFG & 0x7F);
+ 378   2                              EP6CFG        = (EP6CFG & 0x7F);
+ 379   2                              EP8CFG        = (EP8CFG & 0x7F);                        
+ 380   2                              break;
+ 381   2              }
+ 382   1      
+ 383   1              return(TRUE);                   // Handled by user code
+ 384   1      }
+ 385          
+ 386          // Called when a Get Interface command is received
+ 387          BOOL DR_GetInterface(void)
+ 388          {
+ 389   1         EP0BUF[0] = AlternateSetting;
+ 390   1         EP0BCH = 0;
+ 391   1         EP0BCL = 1;
+ 392   1         return(TRUE);                        // Handled by user code
+ 393   1      }
+ 394          
+ 395          BOOL DR_GetStatus(void)
+ 396          {
+ 397   1         return(TRUE);
+ 398   1      }
+ 399          
+ 400          BOOL DR_ClearFeature(void)
+ 401          {
+ 402   1         return(TRUE);
+ 403   1      }
+ 404          
+ 405          BOOL DR_SetFeature(void)
+ 406          {
+ 407   1         return(TRUE);
+ 408   1      }
+ 409          
+ 410          BOOL DR_VendorCmnd(void)
+ 411          {
+ 412   1         return(TRUE);
+ 413   1      }
+ 414          
+ 415          //----------------------------------------------------------------------------
+ 416          // USB Interrupt Handlers
+ 417          //   The following functions are called by the USB interrupt jump table.
+ 418          //----------------------------------------------------------------------------
+ 419          
+ 420          // Setup Data Available Interrupt Handler
+ 421          void ISR_Sudav(void) interrupt 0
+ 422          {
+ 423   1         GotSUD = TRUE;            // Set flag
+ 424   1         EZUSB_IRQ_CLEAR();
+ 425   1         USBIRQ = bmSUDAV;         // Clear SUDAV IRQ
+ 426   1      }
+ 427          
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 8   
+
+ 428          // Setup Token Interrupt Handler
+ 429          void ISR_Sutok(void) interrupt 0
+ 430          {
+ 431   1         EZUSB_IRQ_CLEAR();
+ 432   1         USBIRQ = bmSUTOK;         // Clear SUTOK IRQ
+ 433   1      }
+ 434          
+ 435          void ISR_Sof(void) interrupt 0
+ 436          {
+ 437   1         EZUSB_IRQ_CLEAR();
+ 438   1         USBIRQ = bmSOF;            // Clear SOF IRQ
+ 439   1      }
+ 440          
+ 441          void ISR_Ures(void) interrupt 0
+ 442          {
+ 443   1         // whenever we get a USB reset, we should revert to full speed mode
+ 444   1         pConfigDscr = pFullSpeedConfigDscr;
+ 445   1         ((CONFIGDSCR xdata *) pConfigDscr)->type = CONFIG_DSCR;
+ 446   1         pOtherConfigDscr = pHighSpeedConfigDscr;
+ 447   1         ((CONFIGDSCR xdata *) pOtherConfigDscr)->type = OTHERSPEED_DSCR;
+ 448   1         
+ 449   1         EZUSB_IRQ_CLEAR();
+ 450   1         USBIRQ = bmURES;         // Clear URES IRQ
+ 451   1      }
+ 452          
+ 453          void ISR_Susp(void) interrupt 0
+ 454          {
+ 455   1         Sleep = TRUE;
+ 456   1         EZUSB_IRQ_CLEAR();
+ 457   1         USBIRQ = bmSUSP;
+ 458   1      }
+ 459          
+ 460          void ISR_Highspeed(void) interrupt 0
+ 461          {
+ 462   1         if (EZUSB_HIGHSPEED())
+ 463   1         {
+ 464   2            pConfigDscr = pHighSpeedConfigDscr;
+ 465   2            ((CONFIGDSCR xdata *) pConfigDscr)->type = CONFIG_DSCR;
+ 466   2            pOtherConfigDscr = pFullSpeedConfigDscr;
+ 467   2            ((CONFIGDSCR xdata *) pOtherConfigDscr)->type = OTHERSPEED_DSCR;
+ 468   2         }
+ 469   1      
+ 470   1         EZUSB_IRQ_CLEAR();
+ 471   1         USBIRQ = bmHSGRANT;
+ 472   1      }
+ 473          void ISR_Ep0ack(void) interrupt 0
+ 474          {
+ 475   1      }
+ 476          void ISR_Stub(void) interrupt 0
+ 477          {
+ 478   1      }
+ 479          void ISR_Ep0in(void) interrupt 0
+ 480          {
+ 481   1      }
+ 482          void ISR_Ep0out(void) interrupt 0
+ 483          {
+ 484   1      }
+ 485          
+ 486          
+ 487          /* NAME
+ 488           *      ISR_Ep1in
+ 489           *
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 9   
+
+ 490           * DESCRIPTION
+ 491           *      This interrupt is triggered when the host has received
+ 492           *      the feedback sent by ISR_Ep1out. Upon this event, this
+ 493           *      handler re-arms the EP1OUT endpoint to accept another
+ 494           *      buffer.
+ 495           *
+ 496           * ARGUMENTS
+ 497           *      None.
+ 498           *
+ 499           * RETURN
+ 500           *      None.
+ 501           *
+ 502           * Nov 17 2008  Added condition to check that using alt. interface 1.
+ 503           */
+ 504          
+ 505          void ISR_Ep1in(void) interrupt 0
+ 506          {
+ 507   1              if (AlternateSetting == 1) {
+ 508   2                      /* Writing any value (in this case the endpoint size) re-arms */
+ 509   2                      EP1OUTBC = 64;
+ 510   2              }
+ 511   1                      /* Clear the interrupt */
+ 512   1                      EZUSB_IRQ_CLEAR();
+ 513   1                      EPIRQ = bmBIT2;
+ 514   1      }
+ 515          
+ 516          
+ 517          /* NAME
+ 518           *      ISR_Ep1out
+ 519           *
+ 520           * DESCRIPTION
+ 521           *      This interrupt is triggered when the EP1OUT endpoint receives a
+ 522           *      buffer. The buffer is written, bit by bit, MSB first starting with
+ 523           *      byte zero to the FPGA. The CCLK signal is also generated, with the
+ 524           *      rising edge denoting the clocking edge.
+ 525           *
+ 526           *      A feedback signal is sent to the host over EP1IN. The first byte of
+ 527           *      the feedback buffer denotes the level of the DONE signal. The second
+ 528           *      byte denotes the level of the INIT_B signal. 
+ 529           * ARGUMENTS
+ 530           *      None.
+ 531           *
+ 532           * RETURN
+ 533           *      None.
+ 534           *
+ 535           * Nov 17 2008  Added condition to check that using alt. interface 1.
+ 536           */
+ 537          
+ 538          void ISR_Ep1out(void) interrupt 0
+ 539          {
+ 540   1              /* Local (stack) variables */
+ 541   1              BYTE i, j;
+ 542   1      
+ 543   1      
+ 544   1              if (AlternateSetting == 1) {
+ 545   2                      /* Clock out buffer to FPGA */
+ 546   2                      for (i = 0; i < EP1OUTBC; i++)
+ 547   2                      {
+ 548   3                              /* Clock out bits */
+ 549   3                              for (j = 0; j < 8; j++)
+ 550   3                              {
+ 551   4                                      /* Generate falling clock edge */
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 10  
+
+ 552   4                                      IOA &= ~bmBIT0;
+ 553   4              
+ 554   4                                      /* Output bit on DIN */
+ 555   4                                      IOA = (EP1OUTBUF[i] & (0x80 >> j)) ?
+ 556   4                                                      IOA | bmBIT6 : IOA & ~bmBIT6;
+ 557   4              
+ 558   4                                      /* Clock in bit (generate rising clock edge) */
+ 559   4                                      IOA |= bmBIT0;
+ 560   4                              }
+ 561   3                      }
+ 562   2              
+ 563   2                      /* Signal to host state of DONE and INIT_B */
+ 564   2                      if (!(EP1INCS & bmEPBUSY)) {
+ 565   3                              EP1INBUF[0] = (IOA & bmBIT1) ? 1 : 0;
+ 566   3                              EP1INBUF[1] = (IOA & bmBIT7) ? 1 : 0;
+ 567   3                              EP1INBC     = 2;
+ 568   3                      }
+ 569   2              }
+ 570   1      
+ 571   1              /* Clear interrupt request */
+ 572   1              EZUSB_IRQ_CLEAR();
+ 573   1              EPIRQ = bmBIT3;
+ 574   1      }
+ 575          
+ 576          
+ 577          void ISR_Ep2inout(void) interrupt 0
+ 578          {
+ 579   1      }
+ 580          void ISR_Ep4inout(void) interrupt 0
+ 581          {
+ 582   1      }
+ 583          void ISR_Ep6inout(void) interrupt 0
+ 584          {
+ 585   1      }
+ 586          void ISR_Ep8inout(void) interrupt 0
+ 587          {
+ 588   1      }
+ 589          void ISR_Ibn(void) interrupt 0
+ 590          {
+ 591   1      }
+ 592          void ISR_Ep0pingnak(void) interrupt 0
+ 593          {
+ 594   1      }
+ 595          void ISR_Ep1pingnak(void) interrupt 0
+ 596          {
+ 597   1      }
+ 598          void ISR_Ep2pingnak(void) interrupt 0
+ 599          {
+ 600   1      }
+ 601          void ISR_Ep4pingnak(void) interrupt 0
+ 602          {
+ 603   1      }
+ 604          void ISR_Ep6pingnak(void) interrupt 0
+ 605          {
+ 606   1      }
+ 607          void ISR_Ep8pingnak(void) interrupt 0
+ 608          {
+ 609   1      }
+ 610          void ISR_Errorlimit(void) interrupt 0
+ 611          {
+ 612   1      }
+ 613          void ISR_Ep2piderror(void) interrupt 0
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 11  
+
+ 614          {
+ 615   1      }
+ 616          void ISR_Ep4piderror(void) interrupt 0
+ 617          {
+ 618   1      }
+ 619          void ISR_Ep6piderror(void) interrupt 0
+ 620          {
+ 621   1      }
+ 622          void ISR_Ep8piderror(void) interrupt 0
+ 623          {
+ 624   1      }
+ 625          void ISR_Ep2pflag(void) interrupt 0
+ 626          {
+ 627   1      }
+ 628          void ISR_Ep4pflag(void) interrupt 0
+ 629          {
+ 630   1      }
+ 631          void ISR_Ep6pflag(void) interrupt 0
+ 632          {
+ 633   1      }
+ 634          void ISR_Ep8pflag(void) interrupt 0
+ 635          {
+ 636   1      }
+ 637          void ISR_Ep2eflag(void) interrupt 0
+ 638          {
+ 639   1      }
+ 640          void ISR_Ep4eflag(void) interrupt 0
+ 641          {
+ 642   1      }
+ 643          void ISR_Ep6eflag(void) interrupt 0
+ 644          {
+ 645   1      }
+ 646          void ISR_Ep8eflag(void) interrupt 0
+ 647          {
+ 648   1      }
+ 649          void ISR_Ep2fflag(void) interrupt 0
+ 650          {
+ 651   1      }
+ 652          void ISR_Ep4fflag(void) interrupt 0
+ 653          {
+ 654   1      }
+ 655          void ISR_Ep6fflag(void) interrupt 0
+ 656          {
+ 657   1      }
+ 658          void ISR_Ep8fflag(void) interrupt 0
+ 659          {
+ 660   1      }
+ 661          void ISR_GpifComplete(void) interrupt 0
+ 662          {
+ 663   1      }
+ 664          void ISR_GpifWaveform(void) interrupt 0
+ 665          {
+ 666   1      }
+ 667          
+ 668          /*------------------------------ PROPRIETARY -------------------------------*/
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    948    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V7.07   PERIPH                                                                11/26/2008 20:30:38 PAGE 12  
+
+   DATA SIZE        =      4    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
