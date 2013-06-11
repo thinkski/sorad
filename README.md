@@ -1,7 +1,17 @@
 Sorad
 =====
 
-A homebrew software radio
+A homebrew software radio that is so radicool:
+
+* Plenty of space for custom IP middleware: 500k gate FPGA
+* Fast: 125 Msps ADC
+* Plays nice: 50 ohm input impedance
+* Pre-amplifies: 20 dB LNA
+* Filters: 2nd-order low-pass
+* 70 dB dynamic range
+* IEEE 1149 JTAG BSP
+* Fat pipe: 480 Mbps USB
+* Reconfigurable: FPGA configures over USB
 
 Hardware
 --------
