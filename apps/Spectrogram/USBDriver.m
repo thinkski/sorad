@@ -71,39 +71,39 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 
 	
 	// Create an autorelease pool for the thread
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	@autoreleasepool {
 
 	// Create an event source for asynchronous read events
-	kr = (*usbInterfaceInterface)->CreateInterfaceAsyncEventSource(usbInterfaceInterface, &runLoopSource);
+		kr = (*usbInterfaceInterface)->CreateInterfaceAsyncEventSource(usbInterfaceInterface, &runLoopSource);
 
-	// Add the source to the thread's run loop
-	CFRunLoopAddSource([[NSRunLoop currentRunLoop] getCFRunLoop], runLoopSource, kCFRunLoopDefaultMode);
-	
-	// Schedule asynchronous read requests for the buffer pool
-	for (i = 0; i < kNumberInternalBuffers; i++) {
-		// Write driver instance pointer to head of buffer
-		[self refCons][i].driver = self;
-		[self refCons][i].buffer = [self bufferPool]+(kBytesPerInternalBuffer*i);
+		// Add the source to the thread's run loop
+		CFRunLoopAddSource([[NSRunLoop currentRunLoop] getCFRunLoop], runLoopSource, kCFRunLoopDefaultMode);
 		
-		// Asynchronous bulk read request
-		kr = (*usbInterfaceInterface)->ReadPipeAsync(usbInterfaceInterface,
-							     kDataInputPipeRef,
-							     [self refCons][i].buffer,
-							     kBytesPerInternalBuffer,
-							     bufferReceived,
-							     &[self refCons][i]);
-		if (kr != kIOReturnSuccess) {
-			statusMessage = @"Error";
-			NSLog(@"Error scheduling asynchronous pipe read number %ld. (Code 0x%08d)", i, kr);
-			break;
+		// Schedule asynchronous read requests for the buffer pool
+		for (i = 0; i < kNumberInternalBuffers; i++) {
+			// Write driver instance pointer to head of buffer
+			[self refCons][i].driver = (__bridge void *)(self);
+			[self refCons][i].buffer = [self bufferPool]+(kBytesPerInternalBuffer*i);
+			
+			// Asynchronous bulk read request
+			kr = (*usbInterfaceInterface)->ReadPipeAsync(usbInterfaceInterface,
+								     kDataInputPipeRef,
+								     [self refCons][i].buffer,
+								     kBytesPerInternalBuffer,
+								     bufferReceived,
+								     &[self refCons][i]);
+			if (kr != kIOReturnSuccess) {
+				statusMessage = @"Error";
+				NSLog(@"Error scheduling asynchronous pipe read number %ld. (Code 0x%08d)", i, kr);
+				break;
+			}
 		}
-	}
-	
-	// Process this thread's run loop... forever
-	[[NSRunLoop currentRunLoop] run];
+		
+		// Process this thread's run loop... forever
+		[[NSRunLoop currentRunLoop] run];
 	
 	// Release the thread's autorelease pool (should never get here)
-	[pool release];
+	}
 }
 @end
 
@@ -202,7 +202,7 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 							      kIOFirstMatchNotification,
 							      configuredMatchingDict,
 							      configuredDeviceAdded,
-							      (void *)self,
+							      (__bridge void *)self,
 							      &configuredDeviceAddedIterator);
 			
 			if (kr != kIOReturnSuccess) {
@@ -214,7 +214,7 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 							      kIOTerminatedNotification,
 							      configuredMatchingDict,
 							      configuredDeviceRemoved,
-							      (void *)self,
+							      (__bridge void *)self,
 							      &configuredDeviceRemovedIterator);
 			
 			if (kr != kIOReturnSuccess) {
@@ -226,7 +226,7 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 							      kIOFirstMatchNotification,
 							      unconfiguredMatchingDict,
 							      unconfiguredDeviceAdded,
-							      (void *)self,
+							      (__bridge void *)self,
 							      &unconfiguredDeviceAddedIterator);
 			
 			if (kr != kIOReturnSuccess) {
@@ -238,7 +238,7 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 							      kIOTerminatedNotification,
 							      unconfiguredMatchingDict,
 							      unconfiguredDeviceRemoved,
-							      (void *)self,
+							      (__bridge void *)self,
 							      &unconfiguredDeviceRemovedIterator);
 			
 			if (kr != kIOReturnSuccess) {
@@ -247,22 +247,22 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 				
 			// Arm notifications and handle existing devices
 			do {
-				configuredDeviceAdded((void *)self,
+				configuredDeviceAdded((__bridge void *)self,
 						      configuredDeviceAddedIterator);
 			} while ((usbDevice = IOIteratorNext(configuredDeviceAddedIterator)));
 			
 			do {
-				configuredDeviceRemoved((void *)self,
+				configuredDeviceRemoved((__bridge void *)self,
 							configuredDeviceRemovedIterator);
 			} while ((usbDevice = IOIteratorNext(configuredDeviceRemovedIterator)));
 			
 			do {
-				unconfiguredDeviceAdded((void *)self,
+				unconfiguredDeviceAdded((__bridge void *)self,
 							unconfiguredDeviceAddedIterator);
 			} while ((usbDevice = IOIteratorNext(unconfiguredDeviceAddedIterator)));
 			
 			do {
-				unconfiguredDeviceRemoved((void *)self,
+				unconfiguredDeviceRemoved((__bridge void *)self,
 							  unconfiguredDeviceRemovedIterator);
 			} while ((usbDevice = IOIteratorNext(unconfiguredDeviceRemovedIterator)));
 			
@@ -289,7 +289,6 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 		buffer = [[self filledBuffers] objectAtIndex:0];
 		
 		// Retain so won't autorelease when removed from queue.
-		[buffer retain];
 		
 		// Remove the buffer object from the queue.
 		[[self filledBuffers] removeObjectAtIndex:0];
@@ -301,10 +300,8 @@ static void unconfiguredDeviceRemoved(void *refCon, io_iterator_t iter);
 
 - (void)dealloc
 {
-	[filledBuffers dealloc];
 	free(bufferPool);
 	
-	[super dealloc];
 }
 
 - (void)setUsbInterfaceInterface:(IOUSBInterfaceInterface **)newUsbInterfaceInterface
@@ -544,7 +541,7 @@ static int configureFPGA (IOUSBInterfaceInterface **iref)
 static void bufferReceived(void *refCon, IOReturn result, void *arg0)
 {
 	void			 *bytes			= ((referenceContext *)refCon)->buffer;
-	USBDriver		 *usbDriverInstance	= ((referenceContext *)refCon)->driver;
+	USBDriver		 *usbDriverInstance	= (__bridge USBDriver *)(((referenceContext *)refCon)->driver);
 	IOUSBInterfaceInterface	**usbInterfaceInterface	= [usbDriverInstance usbInterfaceInterface];
 
 	
@@ -611,7 +608,7 @@ static void unconfiguredDeviceAdded(void *refCon, io_iterator_t iter)
 	USBDriver		 *usbDriverInstance;
 
 	// Set status message
-	usbDriverInstance = (USBDriver *)refCon;
+	usbDriverInstance = (__bridge USBDriver *)refCon;
 	[usbDriverInstance setStatusMessage:@"Configuring..."];
 	
 	while ((usbDevice = IOIteratorNext(iter))) {
@@ -795,7 +792,7 @@ static void configuredDeviceAdded(void *refCon, io_iterator_t iter)
 	UInt8					  altSetting;
 
 	
-	usbDriverInstance = (USBDriver *)refCon;
+	usbDriverInstance = (__bridge USBDriver *)refCon;
 	
 	// Set status message
 	[usbDriverInstance setStatusMessage:@"Configuring..."];

@@ -97,10 +97,8 @@
 	vDSP_destroy_fftsetupD(fftSetupD);
 	
 	// Deallocate USB driver
-	[usbDriver dealloc];
 	
 	// Parent class deallocations
-	[super dealloc];
 }
 
 
@@ -323,10 +321,9 @@
 		// Clip to view
 		vDSP_vclipD(splitVector.realp, 1, &loThreshold, &hiThreshold, splitVector.realp, 1, numPoints/2);
 		
-		trData = [[NSData dataWithBytesNoCopy:splitVector.realp length:sizeof(double)*numPoints/2 freeWhenDone:NO] autorelease];
+		trData = [NSData dataWithBytesNoCopy:splitVector.realp length:sizeof(double)*numPoints/2 freeWhenDone:NO];
 
 		// Release data object for deallocation
-		[hwData release];
 	}
 
 	return trData;

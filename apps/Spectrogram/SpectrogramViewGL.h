@@ -17,7 +17,7 @@
 @interface SpectrogramViewGL : NSOpenGLView {
 	IBOutlet id dataSource;
 }
-@property (retain, readwrite) id dataSource;
+@property (strong, readwrite) id dataSource;
 @end
 
 @interface NSObject(SpectrogramViewGLDataSource)

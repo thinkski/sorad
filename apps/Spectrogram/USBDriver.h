@@ -44,7 +44,7 @@ typedef struct {
 - (void)setRefCons:(referenceContext *)newRefCons;
 - (referenceContext *)refCons;
 
-@property (retain, readwrite) NSMutableArray *filledBuffers;
-@property (retain, readwrite) NSString       *statusMessage;
+@property (strong, readwrite) NSMutableArray *filledBuffers;
+@property (strong, readwrite) NSString       *statusMessage;
 
 @end

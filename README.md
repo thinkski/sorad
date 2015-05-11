@@ -1,7 +1,7 @@
 Sorad
 =====
 
-A homebrew software radio that is so radicool:
+A *so*ftware *rad*io that is *so* *rad*:
 
 * Plenty of space for custom IP middleware: 500k gate FPGA
 * Fast: 125 Msps ADC
@@ -12,6 +12,7 @@ A homebrew software radio that is so radicool:
 * IEEE 1149 JTAG BSP
 * Fat pipe: 480 Mbps USB
 * Reconfigurable: FPGA configures over USB
+
 
 Hardware
 --------
@@ -28,6 +29,7 @@ RF into the USB endpoint for transmission to the host Mac. The FPGA can also
 down-convert the RF using a cascaded integrator-comb (CIC) filter and
 numerically controlled oscillator (NCO), useful for sample rates beyond
 10Msps.
+
 
 Software
 --------

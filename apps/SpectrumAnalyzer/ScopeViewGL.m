@@ -34,7 +34,6 @@
 		[NSThread sleepUntilDate:[NSDate dateWithTimeIntervalSinceNow:kRefreshPeriod]];
 	}
 	
-	[pool release];
 	[NSThread exit];
 }
 @end
@@ -166,14 +165,12 @@
 			glEnd();
 			
 			// Trace data read into OpenGL framework. Release for deallocation.
-			[trData release];
+			//[trData release];
 		}
 	}
 
 	// Flush back buffer to front (double buffering should be enabled in
 	// Interface Builder)
 	[[self openGLContext] flushBuffer];
-	
-	[pool release];
 }
 @end
