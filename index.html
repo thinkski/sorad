@@ -1,87 +1,171 @@
-<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
-	<title>Sorad | Software Radio</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Sorad | Software Radio</title>
     <link rel="stylesheet" type="text/css" href="css/bootstrap.css" />
 
-	<style type="text/css">
-		body {
-			background-color: #fefefe;
-			padding-top: 20px;
-			padding-bottom: 40px;
-		}
-		.container-narrow {
-			margin: 0 auto;
-			max-width: 800px;
-		}
-		.container-narrow > hr {
-			margin: 30px 0;
-		}
-		.jumbotron {
-			margin: 60px 0;
-			text-align: center;
-		}
-		.jumbotron h1 {
-			font-size: 72px;
-			line-height: 1;
-		}
-		.center {
-			text-align: center;
-		}
-		.tasty {
-			text-align: center;
-			font-size: 48px;
-			line-height: 1;
-		}
-	</style>
+		<style type="text/css">
+			body {
+				background-color: #fefefe;
+				padding-top: 20px;
+				padding-bottom: 40px;
+			}
+			.container-narrow {
+				margin: 0 auto;
+				max-width: 800px;
+			}
+			.container-narrow > hr {
+				margin: 30px 0;
+			}
+			.jumbotron {
+				margin: 60px 0;
+				text-align: center;
+			}
+			.jumbotron h1 {
+				font-size: 72px;
+				line-height: 1;
+			}
+			.center {
+				text-align: center;
+			}
+			.tasty {
+				text-align: center;
+				font-size: 48px;
+				line-height: 1;
+			}
+		</style>
 
-	<link href="css/bootstrap-responsive.css" rel="stylesheet" />
-
+		<link href="css/bootstrap-responsive.css" rel="stylesheet" />
   </head>
-<body>
+	<body>
 
-  <div class="container-narrow">
+		<div class="container-narrow">
 
-    <div class="masthead">
+			<div class="masthead">
 
-	  <div class="jumbotron">
-		<h1>Sorad</h1>
-		<p class="lead">Software radio for Mac OS X</p>
-	  </div>
+				<div class="jumbotron">
+					<h1>Sorad</h1>
+					<p class="lead">A swiss army knife for real-time signal processing</p>
+				</div>
 
-	  <hr>
+				<hr>
 
-      <div class="tasty">The Hardware</div>
-	  <div class="center"><img src="img/board.png" /></div>
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center tasty"><p>Hardware</p></div>
+					<div class="col-md-4"></div>
+				</div>
 
-	  <hr>
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center"><p>20-dB LNA &#8594; 14-bit 125-Msps ADC &#8594; FPGA &#8594; USB 2.0</p></div>
+					<div class="col-md-4"></div>
+				</div>
 
-      <div class="tasty">Analyze the Spectrum</div>
-      <img src="img/specan.png" />
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center"><img src="img/board.png" /></div>
+					<div class="col-md-4"></div>
+				</div>
 
-	  <hr>
+				<hr>
 
-      <div class="tasty">See into the Past</div>
-	  <img src="img/specgram.png" />
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center tasty"><p>Spectrum Analyzer</p></div>
+					<div class="col-md-4"></div>
+				</div>
 
-	  <div class="tasty">Stay tuned...</div>
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center"><p>Blackmann / Hamming / Hanning / Rectangular Window &mdash; 64k-point FFT &mdash; 2/5/10 dB/div</p></div>
+					<div class="col-md-4"></div>
+				</div>
 
-    </div>
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center">
+						<center>
+							<table cellpadding="0" border="0" cellspacing="0">
+								<tr>
+									<td><img src="media/specan/slice_0_0.png" style="width: 56px;  height: 120px; border-width: 0px;"></td>
+									<td><img src="media/specan/slice_0_1.png" style="width: 555px;  height: 120px; border-width: 0px;"></td>
+									<td><img src="media/specan/slice_0_2.png" style="width: 56px;  height: 120px; border-width: 0px;"></td>
+								</tr>
 
-	<hr>
+								<tr>
+									<td><img src="media/specan/slice_1_0.png" style="width: 56px;  height: 336px; border-width: 0px;"></td>
+									<td><video src="media/specan.webm" style="width:555px;height:336px;" poster="media/specan/slice_1_1.png" preload="auto" autoplay loop></video></td>
+									<td><img src="media/specan/slice_1_2.png" style="width: 56px;  height: 336px; border-width: 0px;"></td>
+								</tr>
 
-	<div class="footer">
-		<p>&copy; Chris Hiszpanski 2013</p>
-	</div>
+								<tr>
+									<td><img src="media/specan/slice_2_0.png" style="width: 56px;  height: 105px; border-width: 0px;"></td>
+									<td><img src="media/specan/slice_2_1.png" style="width: 555px;  height: 105px; border-width: 0px;"></td>
+									<td><img src="media/specan/slice_2_2.png" style="width: 56px;  height: 105px; border-width: 0px;"></td>
+								</tr>
+							</table>
+						</center>
+					</div>
+					<div class="col-md-4"></div>
+				</div>
 
-  </div>
+				<hr>
 
-  <a href="https://github.com/thinkski/sorad"><img style="position: fixed; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png" alt="Fork me on GitHub"></a>
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center tasty"><p>Spectrogram</p></div>
+					<div class="col-md-4"></div>
+				</div>
 
-  <!-- google analytics -->
-  <script>
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center"><p>Blackmann / Hamming / Hanning / Rectangular Window &mdash; 64k-point FFT &mdash; 2/5/10 dB/div</p></div>
+					<div class="col-md-4"></div>
+				</div>
+
+				<div clas="row">
+					<div class="col-md-4"></div>
+					<div class="col-md-4 text-center">
+						<center>
+							<table cellpadding="0" border="0" cellspacing="0">
+								<tr>
+									<td><img src="media/spectrogram/slice_0_0.png" style="width: 56px;  height: 120px; border-width: 0px;"></td>
+									<td><img src="media/spectrogram/slice_0_1.png" style="width: 555px;  height: 120px; border-width: 0px;"></td>
+									<td><img src="media/spectrogram/slice_0_2.png" style="width: 56px;  height: 120px; border-width: 0px;"></td>
+								</tr>
+
+								<tr>
+									<td><img src="media/spectrogram/slice_1_0.png" style="width: 56px;  height: 336px; border-width: 0px;"></td>
+									<td><video src="media/spectrogram.webm" style="width:555px;height:336px;" poster="media/spectrogram/slice_1_1.png" preload="auto" autoplay loop></video></td>
+									<td><img src="media/spectrogram/slice_1_2.png" style="width: 56px;  height: 336px; border-width: 0px;"></td>
+								</tr>
+
+								<tr>
+									<td><img src="media/spectrogram/slice_2_0.png" style="width: 56px;  height: 105px; border-width: 0px;"></td>
+									<td><img src="media/spectrogram/slice_2_1.png" style="width: 555px;  height: 105px; border-width: 0px;"></td>
+									<td><img src="media/spectrogram/slice_2_2.png" style="width: 56px;  height: 105px; border-width: 0px;"></td>
+								</tr>
+							</table>
+						</center>
+					</div>
+					<div class="col-md-4"></div>
+				</div>
+			</div>
+
+			<hr>
+
+			<div class="footer text-center">
+				<p>Copyright &copy; 2016 Chris Hiszpanski. All rights reserved.</p>
+			</div>
+
+		</div>
+
+		<a href="https://github.com/thinkski/sorad"><img style="position: fixed; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_red_aa0000.png" alt="Fork me on GitHub"></a>
+
+		<!-- google analytics -->
+		<script>
     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
     (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
     m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
@@ -89,8 +173,7 @@
 
     ga('create', 'UA-41688207-1', 'thinkski.github.io');
     ga('send', 'pageview');
-
-  </script>
+		</script>
   
-</body>
+	</body>
 </html>
